@@ -1,0 +1,12 @@
+*.ipynb_checkpoints/
+*__pycache__/
+*.pt
+*.egg-info
+build/
+dist/
+experiments/results/
+experiments/*/results/
+experiments/medical
+experiments/figures
+.vscode/
+lightning_logs
