@@ -14,12 +14,12 @@ pip install .
 
 ## Usage
 
-GDFS involves learning two separate networks: one responsible for making predictions (the predictor) and one responsible for making selections (the policy). Both networks receive a subset of features as their input, and the policy outputs probabilities for selecting each feature. During training, we sample a random feature using the Concrete distribution, but at test-time we simply use the argmax.
+GDFS involves learning two separate networks: one responsible for making predictions (the predictor) and one responsible for making selections (the policy). Both networks receive a subset of features as their input, and the policy outputs probabilities for selecting each feature. During training, we sample a random feature using the Concrete distribution, but at test time we simply use the argmax.
 
-The diagram below illustrates the basic training approach:
+The diagram below illustrates the training approach:
 
 <p align="center">
-  <img width="540" src="https://raw.githubusercontent.com/iancovert/dynamic-selection/main/docs/concept.pdf"/>
+  <img width="100%" src="https://raw.githubusercontent.com/iancovert/dynamic-selection/main/docs/concept.jpg"/>
 </p>
 
 For usage examples, see the following:
@@ -40,4 +40,4 @@ For usage examples, see the following:
 
 ## References
 
-Ian Covert, Wei Qiu, Mingyu Lu, Nayoon Kim, Nathan White, Su-In Lee. "Learning to Maximize Mutual Information for Dynamic Feature Selection." *Preprint, 2023.*
+Ian Covert, Wei Qiu, Mingyu Lu, Nayoon Kim, Nathan White, Su-In Lee. "Learning to Maximize Mutual Information for Dynamic Feature Selection." *arXiv preprint arXiv:2301.00557*, 2023.
