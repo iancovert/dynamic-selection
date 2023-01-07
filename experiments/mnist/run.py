@@ -15,7 +15,7 @@ from dynamic_selection import BaseModel, MaskingPretrainer, GreedyDynamicSelecti
 from dynamic_selection.utils import Flatten, StaticMaskLayer1d
 
 import sys
-sys.path.append('../../')
+sys.path.append('../')
 from baselines import DifferentiableSelector, ConcreteMask
 
 
@@ -77,7 +77,7 @@ if __name__ == '__main__':
             'acc': {},
             'features': {}
         }
-        acc_metric = Accuracy()
+        acc_metric = Accuracy(task='multiclass', num_classes=10)
         
         if args.method in ['sage', 'permutation', 'deeplift', 'intgrad']:
             # Train model.

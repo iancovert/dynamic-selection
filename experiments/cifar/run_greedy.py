@@ -66,7 +66,7 @@ if __name__ == '__main__':
             'features': {},
             'model_path': None
         }
-        acc_metric = Accuracy()
+        acc_metric = Accuracy(task='multiclass', num_classes=10)
         
         # Set up networks.
         backbone = ResNet18Backbone()
@@ -96,7 +96,7 @@ if __name__ == '__main__':
             mask_layer,
             max_features=max_features,
             loss_fn=nn.CrossEntropyLoss(),
-            val_loss_fn=Accuracy(),
+            val_loss_fn=acc_metric,
             val_loss_mode='max',
             patience=2
         )

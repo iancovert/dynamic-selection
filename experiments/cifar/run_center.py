@@ -72,7 +72,7 @@ if __name__ == '__main__':
             'acc': {},
             'features': {}
         }
-        acc_metric = Accuracy()
+        acc_metric = Accuracy(task='multiclass', num_classes=10)
 
         # for num in num_features:
         for height, width in crop_list:
@@ -99,7 +99,7 @@ if __name__ == '__main__':
                 verbose=False)
 
             # Evaluate.
-            acc = basemodel.evaluate(test_dataset, Accuracy(), 1024)
+            acc = basemodel.evaluate(test_dataset, acc_metric, 1024)
             results_dict['acc'][num] = acc
             results_dict['features'][num] = mask.cpu()
             print(f'Num = {num}, Acc = {100*acc:.2f}')

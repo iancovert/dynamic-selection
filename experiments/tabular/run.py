@@ -98,7 +98,7 @@ if __name__ == '__main__':
             'features': {}
         }
         auroc_metric = lambda pred, y: AUROC(task='multiclass', num_classes=d_out)(pred.softmax(dim=1), y)
-        acc_metric = Accuracy()
+        acc_metric = Accuracy(task='multiclass', num_classes=d_out)
         
         if args.method in ['sage', 'permutation', 'deeplift', 'intgrad']:
             # Train model.

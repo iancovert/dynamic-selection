@@ -14,10 +14,10 @@ setuptools.setup(
     packages=['dynamic_selection'],
     install_requires=[
         'numpy',
-        'torch',
-        'pandas',
-        'torchmetrics',
-        'pytorch_lightning'
+        'torch>=1.13.1',
+        'pandas>=1.5.2',
+        'torchmetrics>=0.11.0',
+        'pytorch_lightning>=1.8.6'
     ],
     classifiers=[
         'Programming Language :: Python :: 3',
@@ -26,5 +26,5 @@ setuptools.setup(
         'Intended Audience :: Science/Research',
         'Topic :: Scientific/Engineering'
     ],
-    python_requires='>=3.6',
+    python_requires='>=3.7',
 )
