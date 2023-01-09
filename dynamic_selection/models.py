@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
 from dynamic_selection.utils import generate_uniform_mask, restore_parameters
 from copy import deepcopy
 
@@ -19,9 +18,8 @@ class BaseModel(nn.Module):
         self.model = model
         
     def fit(self,
-            train,
-            val,
-            mbsize,
+            train_loader,
+            val_loader,
             lr,
             nepochs,
             loss_fn,
@@ -36,9 +34,8 @@ class BaseModel(nn.Module):
         Train model.
         
         Args:
-          train:
-          val:
-          mbsize:
+          train_loader:
+          val_loader:
           lr:
           nepochs:
           loss_fn:
@@ -57,14 +54,6 @@ class BaseModel(nn.Module):
         else:
             if val_loss_mode is None:
                 raise ValueError('must specify val_loss_mode (min or max) when validation_loss_fn is specified')
-
-        # Set up data loaders.
-        train_loader = DataLoader(
-            train, batch_size=mbsize, shuffle=True, pin_memory=True,
-            drop_last=True, num_workers=4)
-        val_loader = DataLoader(
-            val, batch_size=mbsize, shuffle=False, pin_memory=True,
-            drop_last=False, num_workers=4)
         
         # Set up optimizer and lr scheduler.
         model = self.model
@@ -143,21 +132,17 @@ class BaseModel(nn.Module):
         # Copy parameters from best model.
         restore_parameters(model, best_model)
         
-    def evaluate(self, dataset, metric, batch_size):
+    def evaluate(self, loader, metric):
         '''
         Evaluate mean performance across a dataset.
         
         Args:
-          dataset:
+          loader:
           metric:
-          batch_size:
         '''
         # Setup.
         self.model.eval()
         device = next(self.model.parameters()).device
-        loader = DataLoader(
-            dataset, batch_size=batch_size, shuffle=False, pin_memory=True,
-            drop_last=False, num_workers=4)
 
         # For calculating mean loss.
         pred_list = []
@@ -204,9 +189,8 @@ class MaskingPretrainer(nn.Module):
         self.mask_layer = mask_layer
         
     def fit(self,
-            train,
-            val,
-            mbsize,
+            train_loader,
+            val_loader,
             lr,
             nepochs,
             loss_fn,
@@ -221,9 +205,8 @@ class MaskingPretrainer(nn.Module):
         Train model.
         
         Args:
-          train:
-          val:
-          mbsize:
+          train_loader:
+          val_loader:
           lr:
           nepochs:
           loss_fn:
@@ -242,14 +225,6 @@ class MaskingPretrainer(nn.Module):
         else:
             if val_loss_mode is None:
                 raise ValueError('must specify val_loss_mode (min or max) when validation_loss_fn is specified')
-
-        # Set up data loaders.
-        train_loader = DataLoader(
-            train, batch_size=mbsize, shuffle=True, pin_memory=True,
-            drop_last=True, num_workers=4)
-        val_loader = DataLoader(
-            val, batch_size=mbsize, shuffle=False, pin_memory=True,
-            drop_last=False, num_workers=4)
         
         # Set up optimizer and lr scheduler.
         model = self.model
@@ -265,9 +240,9 @@ class MaskingPretrainer(nn.Module):
             mask_size = mask_layer.mask_size
         else:
             # Must be tabular (1d data).
-            x, y = next(iter(val))
-            assert len(x.shape) == 1
-            mask_size = len(x)
+            x, y = next(iter(val_loader))
+            assert len(x.shape) == 2
+            mask_size = x.shape[1]
 
         # For tracking best model and early stopping.
         best_model = None
@@ -348,30 +323,26 @@ class MaskingPretrainer(nn.Module):
         # Copy parameters from best model.
         restore_parameters(model, best_model)
 
-    def evaluate(self, dataset, metric, batch_size):
+    def evaluate(self, loader, metric):
         '''
         Evaluate mean performance across a dataset.
         
         Args:
-          dataset:
+          loader:
           metric:
-          batch_size:
         '''
         # Setup.
         self.model.eval()
         device = next(self.model.parameters()).device
-        loader = DataLoader(
-            dataset, batch_size=batch_size, shuffle=False, pin_memory=True,
-            drop_last=False, num_workers=4)
 
         # Determine mask size.
         if hasattr(self.mask_layer, 'mask_size') and (self.mask_layer.mask_size is not None):
             mask_size = self.mask_layer.mask_size
         else:
             # Must be tabular (1d data).
-            x, y = next(iter(dataset))
-            assert len(x.shape) == 1
-            mask_size = len(x)
+            x, y = next(iter(loader))
+            assert len(x.shape) == 2
+            mask_size = x.shape[1]
 
         # For calculating mean loss.
         pred_list = []

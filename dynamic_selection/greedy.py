@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-from torch.utils.data import DataLoader
 from dynamic_selection.utils import restore_parameters, make_onehot, ConcreteSelector
 from copy import deepcopy
 
@@ -30,9 +29,8 @@ class GreedyDynamicSelection(nn.Module):
         self.selector_layer = ConcreteSelector()
 
     def fit(self,
-            train,
-            val,
-            mbsize,
+            train_loader,
+            val_loader,
             lr,
             nepochs,
             max_features,
@@ -52,9 +50,8 @@ class GreedyDynamicSelection(nn.Module):
         Train model to perform greedy adaptive feature selection.
         
         Args:
-          train:
-          val:
-          mbsize:
+          train_loader:
+          val_loader:
           lr:
           nepochs:
           max_features:
@@ -80,14 +77,6 @@ class GreedyDynamicSelection(nn.Module):
                 raise ValueError('must specify val_loss_mode (min or max) when validation_loss_fn is specified')
         if early_stopping_epochs is None:
             early_stopping_epochs = patience + 1
-
-        # Set up data loaders.
-        train_loader = DataLoader(
-            train, batch_size=mbsize, shuffle=True, pin_memory=True,
-            drop_last=True, num_workers=4)
-        val_loader = DataLoader(
-            val, batch_size=mbsize, shuffle=False, pin_memory=True,
-            drop_last=False, num_workers=4)
         
         # Set up models.
         selector = self.selector
@@ -102,9 +91,9 @@ class GreedyDynamicSelection(nn.Module):
             mask_size = mask_layer.mask_size
         else:
             # Must be tabular (1d data).
-            x, y = next(iter(val))
-            assert len(x.shape) == 1
-            mask_size = len(x)
+            x, y = next(iter(val_loader))
+            assert len(x.shape) == 2
+            mask_size = x.shape[1]
         
         # For tracking best models with zero temperature.
         best_val = None
@@ -303,28 +292,23 @@ class GreedyDynamicSelection(nn.Module):
         return pred, x_masked, m
 
     def evaluate(self,
-                 dataset,
+                 loader,
                  max_features,
                  metric,
-                 batch_size,
                  argmax=True):
         '''
         Evaluate mean performance across a dataset.
         
         Args:
-          dataset:
+          loader:
           max_features:
           metric:
-          batch_size:
           argmax:
         '''
         # Setup.
         self.selector.eval()
         self.predictor.eval()
         device = next(self.predictor.parameters()).device
-        loader = DataLoader(
-            dataset, batch_size=batch_size, shuffle=False, pin_memory=True,
-            drop_last=False, num_workers=4)
 
         # For calculating mean loss.
         pred_list = []

@@ -10,6 +10,7 @@ from tqdm.auto import tqdm
 from torchvision import transforms
 from torchvision.datasets import MNIST
 from torchmetrics import Accuracy
+from torch.utils.data import DataLoader
 from captum.attr import DeepLift, IntegratedGradients
 from dynamic_selection import BaseModel, MaskingPretrainer, GreedyDynamicSelection
 from dynamic_selection.utils import Flatten, StaticMaskLayer1d
@@ -67,6 +68,12 @@ if __name__ == '__main__':
     d_in = 784
     d_out = 10
     
+    # Prepare dataloaders.
+    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, pin_memory=True,
+                              drop_last=True, num_workers=2)
+    val_loader = DataLoader(val_dataset, batch_size=1024, pin_memory=True, num_workers=2)
+    test_loader = DataLoader(test_dataset, batch_size=1024, pin_memory=True, num_workers=2)
+    
     # Make results directory.
     if not os.path.exists('results'):
         os.makedirs('results')
@@ -84,9 +91,8 @@ if __name__ == '__main__':
             model = get_network(d_in, d_out)
             basemodel = BaseModel(model).to(device)
             basemodel.fit(
-                train_dataset,
-                val_dataset,
-                mbsize=128,
+                train_loader,
+                val_loader,
                 lr=1e-3,
                 nepochs=250,
                 loss_fn=nn.CrossEntropyLoss(),
@@ -147,22 +153,21 @@ if __name__ == '__main__':
                     model = nn.Sequential(mask_layer, get_network(num, d_out))
                     basemodel = BaseModel(model).to(device)
                     basemodel.fit(
-                        train_dataset,
-                        val_dataset,
-                        mbsize=128,
+                        train_loader,
+                        val_loader,
                         lr=1e-3,
                         nepochs=250,
                         loss_fn=nn.CrossEntropyLoss(),
                         verbose=False)
                     
                     # Check if best.
-                    val_loss = basemodel.evaluate(val_dataset, nn.CrossEntropyLoss(), 1024)
+                    val_loss = basemodel.evaluate(val_loader, nn.CrossEntropyLoss())
                     if val_loss < best_loss:
                         best_model = basemodel
                         best_loss = val_loss
 
                 # Evaluate using best model.
-                acc = best_model.evaluate(test_dataset, acc_metric, 1024)
+                acc = best_model.evaluate(test_loader, acc_metric)
                 results_dict['acc'][num] = acc
                 results_dict['features'][num] = selected_features
                 print(f'Num = {num}, Acc = {100*acc:.2f}')
@@ -174,9 +179,8 @@ if __name__ == '__main__':
                 selector_layer = ConcreteMask(d_in, num)
                 diff_selector = DifferentiableSelector(model, selector_layer).to(device)
                 diff_selector.fit(
-                    train_dataset,
-                    val_dataset,
-                    mbsize=128,
+                    train_loader,
+                    val_loader,
                     lr=1e-3,
                     nepochs=250,
                     loss_fn=nn.CrossEntropyLoss(),
@@ -202,22 +206,21 @@ if __name__ == '__main__':
                     model = nn.Sequential(mask_layer, get_network(num, d_out))
                     basemodel = BaseModel(model).to(device)
                     basemodel.fit(
-                        train_dataset,
-                        val_dataset,
-                        mbsize=128,
+                        train_loader,
+                        val_loader,
                         lr=1e-3,
                         nepochs=250,
                         loss_fn=nn.CrossEntropyLoss(),
                         verbose=False)
 
                     # Check if best.
-                    val_loss = basemodel.evaluate(val_dataset, nn.CrossEntropyLoss(), 1024)
+                    val_loss = basemodel.evaluate(val_loader, nn.CrossEntropyLoss())
                     if val_loss < best_loss:
                         best_model = basemodel
                         best_loss = val_loss
 
                 # Evaluate using best model.
-                acc = best_model.evaluate(test_dataset, acc_metric, 1024)
+                acc = best_model.evaluate(test_loader, acc_metric)
                 results_dict['acc'][num] = acc
                 results_dict['features'][num] = selected_features
                 print(f'Num = {num}, Acc = {100*acc:.2f}')
@@ -231,9 +234,8 @@ if __name__ == '__main__':
             mask_layer = ds.utils.MaskLayer(append=True)
             pretrain = MaskingPretrainer(predictor, mask_layer).to(device)
             pretrain.fit(
-                train_dataset,
-                val_dataset,
-                mbsize=128,
+                train_loader,
+                val_loader,
                 lr=1e-3,
                 nepochs=100,
                 loss_fn=nn.CrossEntropyLoss(),
@@ -243,9 +245,8 @@ if __name__ == '__main__':
             # Train selector and predictor jointly.
             gdfs = GreedyDynamicSelection(selector, predictor, mask_layer).to(device)
             gdfs.fit(
-                train_dataset,
-                val_dataset,
-                mbsize=128,
+                train_loader,
+                val_loader,
                 lr=1e-3,
                 nepochs=250,
                 max_features=max_features,
@@ -255,7 +256,7 @@ if __name__ == '__main__':
 
             # Evaluate.
             for num in num_features:
-                acc = gdfs.evaluate(test_dataset, num, acc_metric, 1024)
+                acc = gdfs.evaluate(test_loader, num, acc_metric)
                 results_dict['acc'][num] = acc
                 print(f'Num = {num}, Acc = {100*acc:.2f}')
                 

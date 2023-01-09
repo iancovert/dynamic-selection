@@ -4,7 +4,6 @@ import torch.optim as optim
 import numpy as np
 from tqdm.auto import tqdm
 from copy import deepcopy
-from torch.utils.data import DataLoader
 from dynamic_selection.utils import restore_parameters, generate_uniform_mask
 
 
@@ -123,9 +122,8 @@ class IterativeSelector(nn.Module):
             self.data_imputer = Imputer()
         
     def fit(self,
-            train,
-            val,
-            mbsize,
+            train_loader,
+            val_loader,
             lr,
             nepochs,
             loss_fn,
@@ -140,9 +138,8 @@ class IterativeSelector(nn.Module):
         Train model.
         
         Args:
-          train:
-          val:
-          mbsize:
+          train_loader:
+          val_loader:
           lr:
           nepochs:
           loss_fn:
@@ -161,14 +158,6 @@ class IterativeSelector(nn.Module):
         else:
             if val_loss_mode is None:
                 raise ValueError('must specify val_loss_mode (min or max) when validation_loss_fn is specified')
-
-        # Set up data loaders.
-        train_loader = DataLoader(
-            train, batch_size=mbsize, shuffle=True, pin_memory=True,
-            drop_last=True, num_workers=4)
-        val_loader = DataLoader(
-            val, batch_size=mbsize, shuffle=False, pin_memory=True,
-            drop_last=False, num_workers=4)
         
         # Set up optimizer and lr scheduler.
         model = self.model
@@ -184,9 +173,9 @@ class IterativeSelector(nn.Module):
             mask_size = mask_layer.mask_size
         else:
             # Must be tabular (1d data).
-            x, y = next(iter(val))
-            assert len(x.shape) == 1
-            mask_size = len(x)
+            x, y = next(iter(val_loader))
+            assert len(x.shape) == 2
+            mask_size = x.shape[1]
 
         # For tracking best model and early stopping.
         best_model = None
@@ -315,9 +304,8 @@ class IterativeSelector(nn.Module):
             mask_size = mask_layer.mask_size
         else:
             # Must be tabular (1d data).
-            x_temp = next(iter(x))
-            assert len(x_temp.shape) == 1
-            mask_size = len(x_temp)
+            assert len(x.shape) == 2
+            mask_size = x.shape[1]
         num_features = mask_size
         assert 0 < max_features < num_features
         m = torch.zeros((x.shape[0], mask_size), device=device)
@@ -394,9 +382,8 @@ class IterativeSelector(nn.Module):
             mask_size = mask_layer.mask_size
         else:
             # Must be tabular (1d data).
-            x_temp = next(iter(x))
-            assert len(x_temp.shape) == 1
-            mask_size = len(x_temp)
+            assert len(x.shape) == 2
+            mask_size = x.shape[1]
         num_features = mask_size
         assert isinstance(num_features_list, (list, tuple, np.ndarray))
         assert 0 < max(num_features_list) < num_features
@@ -455,26 +442,21 @@ class IterativeSelector(nn.Module):
                 yield k + 1, mask_layer(x, m), m
     
     def evaluate(self,
-                 dataset,
+                 loader,
                  max_features,
                  metric,
-                 batch_size,
                  num_samples=128):
         '''
         Evaluate mean performance across a dataset.
         
         Args:
-          dataset:
+          loader:
           max_features:
           metric:
-          batch_size:
           num_samples:
         '''
         self.model.eval()
         device = next(self.model.parameters()).device
-        loader = DataLoader(
-            dataset, batch_size=batch_size, shuffle=False, pin_memory=True,
-            drop_last=False, num_workers=4)
         
         # For calculating mean loss.
         pred_list = []
@@ -503,26 +485,21 @@ class IterativeSelector(nn.Module):
         return score
     
     def evaluate_multiple(self,
-                          dataset,
+                          loader,
                           num_features_list,
                           metric,
-                          batch_size,
                           num_samples=128):
         '''
         Evaluate mean performance across a dataset.
         
         Args:
-          dataset:
+          loader:
           num_features_list:
           metric:
-          batch_size:
           num_samples:
         '''
         self.model.eval()
         device = next(self.model.parameters()).device
-        loader = DataLoader(
-            dataset, batch_size=batch_size, shuffle=False, pin_memory=True,
-            drop_last=False, num_workers=4)
         
         # For calculating mean loss.
         pred_dict = {num: [] for num in num_features_list}

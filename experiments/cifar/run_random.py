@@ -5,6 +5,7 @@ import argparse
 import numpy as np
 import torch.nn as nn
 from torchmetrics import Accuracy
+from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import CIFAR10
 from dynamic_selection import BaseModel
@@ -50,6 +51,13 @@ if __name__ == '__main__':
     d_in = 32 * 32
     d_out = 10
     
+    # Prepare dataloaders.
+    mbsize = 128
+    train_loader = DataLoader(train_dataset, batch_size=mbsize, shuffle=True, pin_memory=True,
+                              drop_last=True, num_workers=4)
+    val_loader = DataLoader(val_dataset, batch_size=mbsize, pin_memory=True, num_workers=4)
+    test_loader = DataLoader(test_dataset, batch_size=mbsize, pin_memory=True, num_workers=4)
+    
     # Make results directory.
     if not os.path.exists('results'):
         os.makedirs('results')
@@ -76,16 +84,15 @@ if __name__ == '__main__':
             # Train model.
             basemodel = BaseModel(model).to(device)
             basemodel.fit(
-                train_dataset,
-                val_dataset,
-                mbsize=128,
+                train_loader,
+                val_loader,
                 lr=1e-3,
                 nepochs=100,
                 loss_fn=nn.CrossEntropyLoss(),
                 verbose=False)
 
             # Evaluate.
-            acc = basemodel.evaluate(test_dataset, acc_metric, 1024)
+            acc = basemodel.evaluate(test_loader, acc_metric)
             results_dict['acc'][num] = acc
             results_dict['features'][num] = mask.cpu()
             print(f'Num = {num}, Acc = {100*acc:.2f}')

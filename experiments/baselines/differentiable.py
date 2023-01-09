@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-from torch.utils.data import DataLoader
 from dynamic_selection.utils import restore_parameters
 from copy import deepcopy
 
@@ -16,9 +15,8 @@ class DifferentiableSelector(nn.Module):
         self.selector_layer = selector_layer
     
     def fit(self,
-            train,
-            val,
-            mbsize,
+            train_loader,
+            val_loader,
             lr,
             nepochs,
             loss_fn,
@@ -36,9 +34,8 @@ class DifferentiableSelector(nn.Module):
         Train model to perform global feature selection.
         
         Args:
-          train:
-          val:
-          mbsize:
+          train_loader:
+          val_loader:
           lr:
           nepochs:
           loss_fn:
@@ -58,21 +55,13 @@ class DifferentiableSelector(nn.Module):
             val_loss_fn = loss_fn
         if early_stopping_epochs is None:
             early_stopping_epochs = patience + 1
-
-        # Set up data loaders.
-        train_loader = DataLoader(
-            train, batch_size=mbsize, shuffle=True, pin_memory=True,
-            drop_last=True, num_workers=4)
-        val_loader = DataLoader(
-            val, batch_size=mbsize, shuffle=False, pin_memory=True,
-            drop_last=False, num_workers=4)
         
         # More setup.
         model = self.model
         selector_layer = self.selector_layer
         device = next(model.parameters()).device
         val_loss_fn.to(device)
-        
+
         # For tracking best models with zero temperature.
         best_val = None
         best_zerotemp_model = None
@@ -211,21 +200,17 @@ class DifferentiableSelector(nn.Module):
         pred = self.model(x_masked)
         return pred
 
-    def evaluate(self, dataset, metric, batch_size):
+    def evaluate(self, loader, metric):
         '''
         Evaluate mean performance across a dataset.
         
         Args:
-          dataset:
+          loader:
           metric:
-          batch_size:
         '''
         # Setup.
         self.model.eval()
         device = next(self.model.parameters()).device
-        loader = DataLoader(
-            dataset, batch_size=batch_size, shuffle=False, pin_memory=True,
-            drop_last=False, num_workers=4)
 
         # For calculating mean loss.
         pred_list = []

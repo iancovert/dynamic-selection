@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import numpy as np
 from tqdm.auto import tqdm
-from torch.utils.data import DataLoader
 from baselines.iterative import calculate_criterion, Imputer
 from dynamic_selection.utils import MaskLayerGrouped
 
@@ -84,9 +83,8 @@ class EDDI(nn.Module):
             mask_size = mask_layer.mask_size
         else:
             # Must be tabular (1d data).
-            x_temp = next(iter(x))
-            assert len(x_temp.shape) == 1
-            mask_size = len(x_temp)
+            assert len(x.shape) == 2
+            mask_size = x.shape[1]
         num_features = mask_size
         assert 0 < max_features < num_features
         m = torch.zeros((x.shape[0], mask_size), device=device)
@@ -173,9 +171,8 @@ class EDDI(nn.Module):
             mask_size = mask_layer.mask_size
         else:
             # Must be tabular (1d data).
-            x_temp = next(iter(x))
-            assert len(x_temp.shape) == 1
-            mask_size = len(x_temp)
+            assert len(x.shape) == 2
+            mask_size = x.shape[1]
         num_features = mask_size
         assert isinstance(num_features_list, (list, tuple, np.ndarray))
         assert 0 < max(num_features_list) < num_features
@@ -243,25 +240,19 @@ class EDDI(nn.Module):
                 yield k + 1, mask_layer(x, m), m
     
     def evaluate(self,
-                 dataset,
+                 loader,
                  max_features,
-                 metric,
-                 batch_size):
+                 metric):
         '''
         Evaluate mean performance across a dataset.
         
         Args:
-          dataset:
+          loader:
           max_features:
           metric:
-          batch_size:
-          num_samples:
         '''
         self.model.eval()
         device = next(self.model.parameters()).device
-        loader = DataLoader(
-            dataset, batch_size=batch_size, shuffle=False, pin_memory=True,
-            drop_last=False, num_workers=4)
         
         # For calculating mean loss.
         pred_list = []
@@ -290,25 +281,19 @@ class EDDI(nn.Module):
         return score
     
     def evaluate_multiple(self,
-                          dataset,
+                          loader,
                           num_features_list,
-                          metric,
-                          batch_size):
+                          metric):
         '''
         Evaluate mean performance across a dataset for multiple feature budgets.
         
         Args:
-          dataset:
+          loader:
           num_features_list:
           metric:
-          batch_size:
-          num_samples:
         '''
         self.model.eval()
         device = next(self.model.parameters()).device
-        loader = DataLoader(
-            dataset, batch_size=batch_size, shuffle=False, pin_memory=True,
-            drop_last=False, num_workers=4)
         
         # For calculating mean loss.
         pred_dict = {num: [] for num in num_features_list}

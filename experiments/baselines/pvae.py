@@ -3,7 +3,6 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
 from dynamic_selection.utils import generate_uniform_mask, restore_parameters, MaskLayerGrouped
 from torch.distributions.normal import Normal
 from torch.distributions.bernoulli import Bernoulli
@@ -107,9 +106,8 @@ class PVAE(nn.Module):
         return kl - log_prob
     
     def fit(self,
-            train,
-            val,
-            mbsize,
+            train_loader,
+            val_loader,
             lr,
             nepochs,
             factor=0.2,
@@ -121,9 +119,8 @@ class PVAE(nn.Module):
         Train model.
         
         Args:
-          train:
-          val:
-          mbsize:
+          train_loader:
+          val_loader:
           lr:
           nepochs:
           factor:
@@ -132,14 +129,6 @@ class PVAE(nn.Module):
           early_stopping_epochs:
           verbose:
         '''
-        # Set up data loaders.
-        train_loader = DataLoader(
-            train, batch_size=mbsize, shuffle=True, pin_memory=True,
-            drop_last=True, num_workers=4)
-        val_loader = DataLoader(
-            val, batch_size=mbsize, shuffle=False, pin_memory=True,
-            drop_last=False, num_workers=4)
-        
         # Set up optimizer and lr scheduler.
         mask_layer = self.mask_layer
         device = next(self.parameters()).device
@@ -153,9 +142,9 @@ class PVAE(nn.Module):
             mask_size = mask_layer.mask_size
         else:
             # Must be tabular (1d data).
-            x, _ = next(iter(val))
-            assert len(x.shape) == 1
-            mask_size = len(x)
+            x, _ = next(iter(val_loader))
+            assert len(x.shape) == 2
+            mask_size = x.shape[1]
 
         # For tracking best model and early stopping.
         best_encoder = None

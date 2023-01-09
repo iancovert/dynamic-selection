@@ -7,6 +7,7 @@ import numpy as np
 import torch.nn as nn
 import dynamic_selection as ds
 from tqdm.auto import tqdm
+from torch.utils.data import DataLoader
 from torchmetrics import Accuracy, AUROC
 from captum.attr import DeepLift, IntegratedGradients
 from dynamic_selection import BaseModel, MaskingPretrainer, GreedyDynamicSelection
@@ -86,6 +87,13 @@ if __name__ == '__main__':
         dataset.tensors = (dataset.tensors[0] - mean, dataset.tensors[1])
     train_dataset, val_dataset, test_dataset = data_split(dataset)
     
+    # Prepare dataloaders.
+    train_loader = DataLoader(
+        train_dataset, batch_size=32 if args.method == 'cae' else 128,
+        shuffle=True, pin_memory=True, drop_last=True)
+    val_loader = DataLoader(val_dataset, batch_size=1024, pin_memory=True)
+    test_loader = DataLoader(test_dataset, batch_size=1024, pin_memory=True)
+    
     # Make results directory.
     if not os.path.exists('results'):
         os.makedirs('results')
@@ -105,9 +113,8 @@ if __name__ == '__main__':
             model = get_network(d_in, d_out)
             basemodel = BaseModel(model).to(device)
             basemodel.fit(
-                train_dataset,
-                val_dataset,
-                mbsize=128,
+                train_loader,
+                val_loader,
                 lr=1e-3,
                 nepochs=250,
                 loss_fn=nn.CrossEntropyLoss(),
@@ -163,6 +170,11 @@ if __name__ == '__main__':
                 std = torch.clamp(subset_dataset.tensors[0].std(dim=0), min=1e-3)
                 subset_dataset.tensors = (subset_dataset.tensors[0] - mean, subset_dataset.tensors[1])
                 train_subset, val_subset, test_subset = data_split(subset_dataset)
+                
+                # Prepare subset dataloaders.
+                train_subset_loader = DataLoader(train_subset, batch_size=128, shuffle=True, pin_memory=True, drop_last=True)
+                val_subset_loader = DataLoader(val_subset, batch_size=1024, pin_memory=True)
+                test_subset_loader = DataLoader(test_subset, batch_size=1024, pin_memory=True)
             
                 best_loss = np.inf
                 for _ in range(args.num_restarts):
@@ -170,22 +182,21 @@ if __name__ == '__main__':
                     model = get_network(num, d_out)
                     basemodel = BaseModel(model).to(device)
                     basemodel.fit(
-                        train_subset,
-                        val_subset,
-                        mbsize=128,
+                        train_subset_loader,
+                        val_subset_loader,
                         lr=1e-3,
                         nepochs=250,
                         loss_fn=nn.CrossEntropyLoss(),
                         verbose=False)
                     
                     # Check if best.
-                    val_loss = basemodel.evaluate(val_subset, nn.CrossEntropyLoss(), 1024)
+                    val_loss = basemodel.evaluate(val_subset_loader, nn.CrossEntropyLoss())
                     if val_loss < best_loss:
                         best_model = basemodel
                         best_loss = val_loss
                 
                 # Evaluate using best model.
-                auroc, acc = best_model.evaluate(test_subset, (auroc_metric, acc_metric), 1024)
+                auroc, acc = best_model.evaluate(test_subset_loader, (auroc_metric, acc_metric))
                 results_dict['auroc'][num] = auroc
                 results_dict['acc'][num] = acc
                 results_dict['features'][num] = selected_features
@@ -198,9 +209,8 @@ if __name__ == '__main__':
                 selector_layer = ConcreteMask(d_in, num)
                 diff_selector = DifferentiableSelector(model, selector_layer).to(device)
                 diff_selector.fit(
-                    train_dataset,
-                    val_dataset,
-                    mbsize=32,
+                    train_loader,
+                    val_loader,
                     lr=1e-3,
                     nepochs=250,
                     loss_fn=nn.CrossEntropyLoss(),
@@ -223,28 +233,32 @@ if __name__ == '__main__':
                 subset_dataset.tensors = (subset_dataset.tensors[0] - mean, subset_dataset.tensors[1])
                 train_subset, val_subset, test_subset = data_split(subset_dataset)
                 
+                # Prepare subset dataloaders.
+                train_subset_loader = DataLoader(train_subset, batch_size=128, shuffle=True, pin_memory=True, drop_last=True)
+                val_subset_loader = DataLoader(val_subset, batch_size=1024, pin_memory=True)
+                test_subset_loader = DataLoader(test_subset, batch_size=1024, pin_memory=True)
+                
                 best_loss = np.inf
                 for _ in range(args.num_restarts):
                     # Train model.
                     model = get_network(num, d_out)
                     basemodel = BaseModel(model).to(device)
                     basemodel.fit(
-                        train_subset,
-                        val_subset,
-                        mbsize=128,
+                        train_subset_loader,
+                        val_subset_loader,
                         lr=1e-3,
                         nepochs=250,
                         loss_fn=nn.CrossEntropyLoss(),
                         verbose=False)
                     
                     # Check if best.
-                    val_loss = basemodel.evaluate(val_subset, nn.CrossEntropyLoss(), 1024)
+                    val_loss = basemodel.evaluate(val_subset_loader, nn.CrossEntropyLoss())
                     if val_loss < best_loss:
                         best_model = basemodel
                         best_loss = val_loss
             
                 # Evaluate using best model.
-                auroc, acc = best_model.evaluate(test_subset, (auroc_metric, acc_metric), 1024)
+                auroc, acc = best_model.evaluate(test_subset_loader, (auroc_metric, acc_metric))
                 results_dict['auroc'][num] = auroc
                 results_dict['acc'][num] = acc
                 results_dict['features'][num] = selected_features
@@ -257,9 +271,8 @@ if __name__ == '__main__':
             sampler = UniformSampler(ds.data.get_xy(train_dataset)[0])
             iterative = IterativeSelector(model, mask_layer, sampler).to(device)
             iterative.fit(
-                train_dataset,
-                val_dataset,
-                mbsize=128,
+                train_loader,
+                val_loader,
                 lr=1e-3,
                 nepochs=100,
                 loss_fn=nn.CrossEntropyLoss(),
@@ -267,7 +280,7 @@ if __name__ == '__main__':
                 verbose=False)
         
             # Evaluate.
-            metrics_dict = iterative.evaluate_multiple(test_dataset, num_features, (auroc_metric, acc_metric), 1024)
+            metrics_dict = iterative.evaluate_multiple(test_loader, num_features, (auroc_metric, acc_metric))
             for num in num_features:
                 auroc, acc = metrics_dict[num]
                 results_dict['auroc'][num] = auroc
@@ -282,9 +295,8 @@ if __name__ == '__main__':
             mask_layer = ds.MaskLayer(append=True)
             pv = PVAE(encoder, decoder, mask_layer, 128, 'gaussian').to(device)
             pv.fit(
-                train_dataset,
-                val_dataset,
-                mbsize=128,
+                train_loader,
+                val_loader,
                 lr=1e-3,
                 nepochs=250,
                 verbose=False)
@@ -294,9 +306,8 @@ if __name__ == '__main__':
             sampler = UniformSampler(ds.data.get_xy(train_dataset)[0])  # TODO don't actually need sampler
             iterative = IterativeSelector(model, mask_layer, sampler).to(device)
             iterative.fit(
-                train_dataset,
-                val_dataset,
-                mbsize=128,
+                train_loader,
+                val_loader,
                 lr=1e-3,
                 nepochs=100,
                 loss_fn=nn.CrossEntropyLoss(),
@@ -307,7 +318,7 @@ if __name__ == '__main__':
             eddi_selector = EDDI(pv, model, mask_layer).to(device)
             
             # Evaluate.
-            metrics_dict = eddi_selector.evaluate_multiple(test_dataset, num_features, (auroc_metric, acc_metric), 1024)
+            metrics_dict = eddi_selector.evaluate_multiple(test_loader, num_features, (auroc_metric, acc_metric))
             for num in num_features:
                 auroc, acc = metrics_dict[num]
                 results_dict['auroc'][num] = auroc
@@ -323,9 +334,8 @@ if __name__ == '__main__':
             mask_layer = ds.utils.MaskLayer(append=True)
             pretrain = MaskingPretrainer(predictor, mask_layer).to(device)
             pretrain.fit(
-                train_dataset,
-                val_dataset,
-                mbsize=128,
+                train_loader,
+                val_loader,
                 lr=1e-3,
                 nepochs=100,
                 loss_fn=nn.CrossEntropyLoss(),
@@ -335,9 +345,8 @@ if __name__ == '__main__':
             # Train selector and predictor jointly.
             gdfs = GreedyDynamicSelection(selector, predictor, mask_layer).to(device)
             gdfs.fit(
-                train_dataset,
-                val_dataset,
-                mbsize=128,
+                train_loader,
+                val_loader,
                 lr=1e-3,
                 nepochs=250,
                 max_features=max_features_dict[args.dataset],
@@ -347,7 +356,7 @@ if __name__ == '__main__':
             
             # Evaluate.
             for num in num_features:
-                auroc, acc = gdfs.evaluate(test_dataset, num, (auroc_metric, acc_metric), 1024)
+                auroc, acc = gdfs.evaluate(test_loader, num, (auroc_metric, acc_metric))
                 results_dict['auroc'][num] = auroc
                 results_dict['acc'][num] = acc
                 print(f'Num = {num}, AUROC = {100*auroc:.2f}, Acc = {100*acc:.2f}')
