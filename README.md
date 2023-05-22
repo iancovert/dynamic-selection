@@ -1,6 +1,6 @@
 # Greedy dynamic feature selection (GDFS)
 
-GDFS is a method for dynamically selecting features based on conditional mutual information. It was developed in the paper [Learning to Maximize Mutual Information for Dynamic Feature Selection (Covert et al., 2023)](https://arxiv.org/abs/2301.00557).
+GDFS is a method for dynamically selecting features based on conditional mutual information. It was developed in the paper [Learning to Maximize Mutual Information for Dynamic Feature Selection](https://arxiv.org/abs/2301.00557).
 
 In the dynamic feature selection (DFS) problem, you handle examples at test-time as follows: you begin with no features, progressively select a specific number of features (according to a pre-specified budget), and then make predictions given the available information. The problem can be addressed in many different ways, but GDFS tries to greedily select features according to their conditional mutual information (CMI) with the response variable. CMI is difficult to calculate, so GDFS approximates these selections using a custom training approach.
 
@@ -40,4 +40,4 @@ For usage examples, see the following:
 
 ## References
 
-Ian Covert, Wei Qiu, Mingyu Lu, Nayoon Kim, Nathan White, Su-In Lee. "Learning to Maximize Mutual Information for Dynamic Feature Selection." *arXiv preprint arXiv:2301.00557*, 2023.
+Ian Covert, Wei Qiu, Mingyu Lu, Nayoon Kim, Nathan White, Su-In Lee. "Learning to Maximize Mutual Information for Dynamic Feature Selection." *ICML, 2023*.
