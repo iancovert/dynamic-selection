@@ -17,14 +17,14 @@ from dynamic_selection.utils import Flatten, StaticMaskLayer1d
 
 import sys
 sys.path.append('../')
-from baselines import DifferentiableSelector, ConcreteMask
+from baselines import DifferentiableSelector, ConcreteMask, GreedyDynamicAblation
 
 
 # Set up command line arguments.
 parser = argparse.ArgumentParser()
 parser.add_argument('--method', type=str, default='greedy',
                     choices=['sage', 'permutation', 'deeplift', 'intgrad',
-                             'cae', 'greedy'])
+                             'cae', 'greedy_ablation', 'greedy'])
 parser.add_argument('--gpu', type=int, default=0)
 parser.add_argument('--num_trials', type=int, default=1)
 parser.add_argument('--num_restarts', type=int, default=1)
@@ -224,7 +224,42 @@ if __name__ == '__main__':
                 results_dict['acc'][num] = acc
                 results_dict['features'][num] = selected_features
                 print(f'Num = {num}, Acc = {100*acc:.2f}')
+                
+        elif args.method == 'greedy_ablation':
+            # Prepare networks.
+            predictor = get_network(d_in * 2, d_out)
+            selector = get_network(d_in * 2, d_in)
 
+            # Pretrain predictor
+            mask_layer = ds.utils.MaskLayer(append=True)
+            pretrain = MaskingPretrainer(predictor, mask_layer).to(device)
+            pretrain.fit(
+                train_loader,
+                val_loader,
+                lr=1e-3,
+                nepochs=100,
+                loss_fn=nn.CrossEntropyLoss(),
+                patience=5,
+                verbose=False)
+
+            # Train selector and predictor jointly.
+            gabl = GreedyDynamicAblation(selector, predictor, mask_layer).to(device)
+            gabl.fit(
+                train_loader,
+                val_loader,
+                lr=1e-3,
+                nepochs=250,
+                max_features=max_features,
+                loss_fn=nn.CrossEntropyLoss(),
+                patience=5,
+                verbose=False)
+
+            # Evaluate.
+            for num in num_features:
+                acc = gabl.evaluate(test_loader, num, acc_metric)
+                results_dict['acc'][num] = acc
+                print(f'Num = {num}, Acc = {100*acc:.2f}')
+        
         elif args.method == 'greedy':
             # Prepare networks.
             predictor = get_network(d_in * 2, d_out)
